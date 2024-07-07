@@ -1,0 +1,137 @@
+# ---------------using random forest
+import pandas as pd
+import re
+import nltk
+import numpy as np
+from nltk.corpus import stopwords
+from nltk.stem.porter import PorterStemmer
+from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.naive_bayes import GaussianNB
+from sklearn.metrics import confusion_matrix, accuracy_score
+
+# Download NLTK stopwords
+nltk.download('stopwords')
+
+# Define Telugu stopwords
+STOP_WORDS = set("""
+అందరూ
+అందుబాటులో
+అడగండి
+అడగడం
+అడ్డంగా
+అనుగుణంగా
+అనుమతించు
+అనుమతిస్తుంది
+అయితే
+ఇప్పటికే
+ఉన్నారు
+ఎక్కడైనా
+ఎప్పుడు
+ఎవరైనా
+ఎవరో ఒకరు
+ఏ
+ఏదైనా
+ఏమైనప్పటికి
+ఏమైనప్పటికి
+ఒక
+ఒక ప్రక్కన
+కనిపిస్తాయి
+కూడా
+గా
+గురించి
+చుట్టూ
+చేయగలిగింది
+తగిన
+తర్వాత
+తర్వాత
+దాదాపు
+దూరంగా
+నిజంగా
+పై
+ప్రకారం
+మధ్య
+మధ్య
+మరియు
+మరొక
+మళ్ళీ
+మాత్రమే
+మెచ్చుకో
+వద్ద
+వద్ద
+వెంట
+వేరుగా
+సంబంధం
+""".split())
+
+# Initialize Porter Stemmer
+ps = PorterStemmer()
+
+# Load the dataset
+dataset = pd.read_csv("sentiment_data_resume.tsv", sep="\t")
+
+corpus = []
+for review in dataset['Review']:
+    # Preprocess each review in Telugu language
+    review = review
+    # Remove symbols and convert to lowercase
+    review = re.sub('[^అ-హ]', ' ', review)  # Assuming Telugu characters are in the range అ-హ
+    review = review.lower()
+    review = review.split()  # Split into words
+    # Remove stopwords and apply stemming
+    review = [ps.stem(word) for word in review if word not in STOP_WORDS]
+    # Join the processed words
+    review = ' '.join(review)
+    corpus.append(review)
+
+# Drop rows with NaN values in 'Liked' column
+dataset.dropna(subset=['Liked'], inplace=True)
+# Convert 'Liked' column to int type
+dataset['Liked'] = dataset['Liked'].astype(int)
+
+# Vectorize the corpus
+cv = CountVectorizer(max_features=1500)
+X = cv.fit_transform(corpus).toarray()
+y = dataset['Liked'].values
+
+# Split the dataset into training and testing sets
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.20, random_state=21)
+
+# Train and test Random Forest Classifier
+rf_classifier = RandomForestClassifier(n_estimators=100, random_state=21)
+rf_classifier.fit(X_train, y_train)
+rf_y_pred = rf_classifier.predict(X_test)
+
+# Train and test Gaussian Naive Bayes Classifier
+nb_classifier = GaussianNB()
+nb_classifier.fit(X_train, y_train)
+nb_y_pred = nb_classifier.predict(X_test)
+
+# Evaluate Random Forest Classifier
+rf_cm = confusion_matrix(y_test, rf_y_pred)
+rf_accuracy = accuracy_score(y_test, rf_y_pred)
+print("Random Forest Classifier Confusion Matrix:")
+print(rf_cm)
+print("Random Forest Classifier Accuracy:", rf_accuracy)
+
+# Evaluate Gaussian Naive Bayes Classifier
+nb_cm = confusion_matrix(y_test, nb_y_pred)
+nb_accuracy = accuracy_score(y_test, nb_y_pred)
+print("Gaussian Naive Bayes Classifier Confusion Matrix:")
+print(nb_cm)
+print("Gaussian Naive Bayes Classifier Accuracy:", nb_accuracy)
+
+
+/////////////////////////////////////////
+out put:
+[nltk_data] Downloading package stopwords to /root/nltk_data...
+[nltk_data]   Unzipping corpora/stopwords.zip.
+Random Forest Classifier Confusion Matrix:
+[[68 30]
+ [32 74]]
+Random Forest Classifier Accuracy: 0.696078431372549
+Gaussian Naive Bayes Classifier Confusion Matrix:
+[[31 67]
+ [13 93]]
+Gaussian Naive Bayes Classifier Accuracy: 0.6078431372549019

@@ -134,3 +134,143 @@ Hybrid Model Confusion Matrix:
 [[67 31]
  [34 72]]
 Hybrid Model Accuracy: 0.6813725490196079
+
+
+
+
+/////////*******USING RUKE BASED STEMMING**********////////////
+import pandas as pd
+import re
+import nltk
+import numpy as np
+from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.model_selection import train_test_split
+from sklearn.naive_bayes import MultinomialNB
+from sklearn.svm import SVC
+from sklearn.metrics import confusion_matrix, accuracy_score
+
+# Download NLTK stopwords
+nltk.download('stopwords')
+
+# Define Telugu stopwords
+STOP_WORDS = set("""
+అందరూ
+అందుబాటులో
+అడగండి
+అడగడం
+అడ్డంగా
+అనుగుణంగా
+అనుమతించు
+అనుమతిస్తుంది
+అయితే
+ఇప్పటికే
+ఉన్నారు
+ఎక్కడైనా
+ఎప్పుడు
+ఎవరైనా
+ఎవరో ఒకరు
+ఏ
+ఏదైనా
+ఏమైనప్పటికి
+ఏమైనప్పటికి
+ఒక
+ఒక ప్రక్కన
+కనిపిస్తాయి
+కూడా
+గా
+గురించి
+చుట్టూ
+చేయగలిగింది
+తగిన
+తర్వాత
+తర్వాత
+దాదాపు
+దూరంగా
+నిజంగా
+పై
+ప్రకారం
+మధ్య
+మధ్య
+మరియు
+మరొక
+మళ్ళీ
+మాత్రమే
+మెచ్చుకో
+వద్ద
+వద్ద
+వెంట
+వేరుగా
+సంబంధం
+""".split())
+
+# Custom Telugu Stemmer: Rule-based stemming
+def telugu_stemmer(word):
+    suffixes = ['లు', 'కు', 'తో', 'లో', 'ని', 'కి', 'మే', 'లోపు', 'గురించి']
+    for suffix in suffixes:
+        if word.endswith(suffix):
+            return word[:-len(suffix)]
+    return word
+
+# Preprocessing function
+def preprocess_text(text):
+    # Remove non-Telugu characters and convert to lowercase
+    text = re.sub('[^అ-హ]', ' ', text)  # Assuming Telugu characters are in the range అ-హ
+    text = text.lower()
+    # Tokenize words
+    words = text.split()
+    # Remove stopwords and apply stemming
+    words = [telugu_stemmer(word) for word in words if word not in STOP_WORDS]
+    # Join words back into a single string
+    return ' '.join(words)
+
+# Load the dataset
+dataset = pd.read_csv("sentiment_data_resume.tsv", sep="\t")
+
+# Apply preprocessing
+corpus = dataset['Review'].apply(preprocess_text)
+
+# Drop rows with NaN values in 'Liked' column
+dataset.dropna(subset=['Liked'], inplace=True)
+# Convert 'Liked' column to int type
+dataset['Liked'] = dataset['Liked'].astype(int)
+
+# Vectorize the corpus
+cv = CountVectorizer(max_features=1500)
+X = cv.fit_transform(corpus).toarray()
+y = dataset['Liked'].values
+
+# Split the dataset into training and testing sets
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.20, random_state=21)
+
+# Train Naive Bayes Classifier
+nb_classifier = MultinomialNB()
+nb_classifier.fit(X_train, y_train)
+
+# Get Naive Bayes class probabilities
+nb_train_probs = nb_classifier.predict_proba(X_train)
+nb_test_probs = nb_classifier.predict_proba(X_test)
+
+# Combine original features with Naive Bayes probabilities
+X_train_hybrid = np.hstack((X_train, nb_train_probs))
+X_test_hybrid = np.hstack((X_test, nb_test_probs))
+
+# Train SVM Classifier on the hybrid features
+svm_classifier_hybrid = SVC(kernel='linear', random_state=21)
+svm_classifier_hybrid.fit(X_train_hybrid, y_train)
+
+# Predict using the hybrid SVM
+svm_hybrid_train_pred = svm_classifier_hybrid.predict(X_train_hybrid)
+svm_hybrid_test_pred = svm_classifier_hybrid.predict(X_test_hybrid)
+
+# Evaluate the Hybrid Model
+hybrid_train_accuracy = accuracy_score(y_train, svm_hybrid_train_pred)
+hybrid_test_accuracy = accuracy_score(y_test, svm_hybrid_test_pred)
+
+hybrid_cm = confusion_matrix(y_test, svm_hybrid_test_pred)
+
+# Print Results
+print("Hybrid Model Confusion Matrix (Test):")
+print(hybrid_cm)
+print("Hybrid Model Training Accuracy:", hybrid_train_accuracy)
+print("Hybrid Model Testing Accuracy:", hybrid_test_accuracy)
+
